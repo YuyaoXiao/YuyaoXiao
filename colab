@@ -1,0 +1,344 @@
+import tensorflow as tf
+import matplotlib.pyplot as plt
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+
+model=tf.keras.models.load_model("/content/drive/MyDrive/20221104_2P_noise_model_16pixel_wrappedz.h5")
+
+###data generation
+###1D walsh
+from scipy.linalg import hadamard
+from sympy.combinatorics import GrayCode
+import numpy as np
+import math
+import matplotlib.pyplot as plt
+import random
+#####generate 1d Walsh
+def walsh(N):
+  H=hadamard(N)
+ 
+  ##re-order
+  graycode=GrayCode(N/2)
+  
+  graycode=list(graycode.generate_gray())
+
+  graycode=np.expand_dims(graycode,axis=1)
+ 
+  j=0
+  graycode_new=np.zeros(N,dtype=int)
+  for i in range(graycode.shape[0]):
+    if int((graycode[i])[0][::-1],2)<N:
+      graycode_new[j]=int((graycode[i])[0][::-1],2)
+      j=j+1
+
+  H_new=np.zeros([N,N],dtype=int)
+
+  for i in range(H.shape[0]):
+     H_new[i]=H[int(graycode_new[i])]
+  return H_new
+###########################################################set sample number
+validation_size=2**10
+walshsize=32
+Walsh1D=walsh(walshsize)
+walshsizeactual=21
+###############################################validation dataset generation
+y_val_validationa=((np.random.rand(validation_size,15))-0.5)*np.pi # hypercube cell coefficients
+y_val_validationb=((np.random.rand(validation_size,walshsizeactual-16))-0.5)*np.pi*0.5/np.sqrt(walshsizeactual-16) # hypercube cell coefficients
+y_val_validation=np.concatenate((y_val_validationa,y_val_validationb),axis=1)
+# y_val_validation_conventional=((np.random.rand(validation_size,walshsize-1))-0.5)*np.pi # hypercube cell coefficients
+# y_val_validation_conventional_sequential=((np.random.rand(validation_size,walshsize-1))-0.5)*np.pi # hypercube cell coefficients
+y_val2_validation = np.zeros([validation_size,walshsizeactual-1])# Voronoi cell labels
+x_val_validation = np.zeros([validation_size,(walshsizeactual)*2-1]) # intensity reading
+z_val_validation = np.zeros([validation_size,walshsizeactual-1]) # rough estiamtes of coeffs
+z_val2_validation = np.zeros([validation_size,walshsizeactual-1]) # wrapped rough estiamtes of coeffs
+# SR=np.zeros([validation_size,1])
+# SR_sequential=np.zeros([validation_size,1])
+SR_NN=np.zeros([validation_size,1])
+######################################################random combination of modes
+f=range(16,32,1)
+index=sorted(random.sample(f, walshsizeactual-16))
+print(f)
+print(index)
+#################################################################sinusoidal fitting 
+# for n in range(10):
+  
+#    if n==0:
+#        aberration=y_val_validation_conventional
+#        for counti in range (validation_size):
+#          abb=np.zeros(walshsize)
+#          for i in range(1,walshsize):
+#            abb=abb+Walsh1D[i]*aberration[counti][i-1]
+#          pupilfield=np.exp(abb*1j)
+#          SR[counti]=np.abs(np.sum(pupilfield)/walshsize)**2## calculate original Strehl ratio
+#        print('traditional validation original',round(np.average(SR),4))
+#    for counti in range (validation_size):
+#      abb=np.zeros(walshsize)
+#      for i in range(1,walshsize):
+#        abb=abb+Walsh1D[i]*aberration[counti][i-1]
+    
+#      x_val_validation[counti][0]=np.abs(np.sum(np.exp(abb*1j))/walshsize)**4## non-biased intensity
+#      for i in range(1,walshsize):
+#        x_val_validation[counti][2*i-1]=np.abs(np.sum(np.exp((abb+Walsh1D[i]*(np.pi/3))*1j))/walshsize)**4  ###+biased intensity reading
+#        x_val_validation[counti][2*i]=np.abs(np.sum(np.exp((abb-Walsh1D[i]*(np.pi/3))*1j))/walshsize)**4  ###-biased intensity reading
+#      #add noise
+#      lambdalambda=np.random.uniform(10,1e4)
+#      x_val_validation[counti][:]=np.random.poisson(np.round(x_val_validation[counti][:]*lambdalambda))/lambdalambda
+#      for i in range(1,walshsize):
+#        z_val_validation[counti][i-1]=0.5*np.arctan2((math.sqrt(x_val_validation[counti][2*i-1])-math.sqrt(x_val_validation[counti][2*i]))*(-math.sqrt(3)),(-math.sqrt(x_val_validation[counti][2*i-1])-math.sqrt(x_val_validation[counti][2*i])+2*math.sqrt(x_val_validation[counti][0])))
+    
+#      if n==0:
+#        aberrationnew=aberration[counti]-z_val_validation[counti]
+#        abb=np.zeros(walshsize)
+#        for i in range(1,walshsize):
+#          abb=abb+Walsh1D[i]*aberrationnew[i-1]
+#        pupilfield=np.exp(abb*1j)
+#        aberration[counti]=aberrationnew
+      
+#      else:
+#        aberrationnew=aberration[counti]-z_val_validation[counti]
+#        abb=np.zeros(walshsize)
+#        for i in range(1,walshsize):
+#          abb=abb+Walsh1D[i]*aberrationnew[i-1]
+#        pupilfield=np.exp(abb*1j)
+#        aberration[counti]=aberrationnew
+       
+#      SR[counti]=np.abs(np.sum(pupilfield)/walshsize)**2## calculate original Strehl ratio
+
+#    print('traditional validation',n+1,round(np.average(SR),4))
+#    n=n+1;
+# #################################################################sinusoidal fitting sequential applications
+# for n in range(10):
+  
+#    if n==0:
+#        aberration=y_val_validation_conventional_sequential
+#        for counti in range (validation_size):
+#          abb=np.zeros(walshsize)
+#          for i in range(1,walshsize):
+#            abb=abb+Walsh1D[i]*aberration[counti][i-1]
+#          pupilfield=np.exp(abb*1j)
+#          SR_sequential[counti]=np.abs(np.sum(pupilfield)/walshsize)**2## calculate original Strehl ratio
+#        print('traditional validation original sequential',round(np.average(SR_sequential),4))
+#    for counti in range (validation_size):
+#      abb=np.zeros(walshsize)
+#      for i in range(1,walshsize):
+#        abb=abb+Walsh1D[i]*aberration[counti][i-1]
+    
+     
+#      for i in range(1,walshsize):
+#        x_val_validation[counti][0]=np.abs(np.sum(np.exp(abb*1j))/walshsize)**4## non-biased intensity
+#        #add noise
+#        lambdalambda=np.random.uniform(10,1e4)
+#        x_val_validation[counti][0]=np.random.poisson(np.round(x_val_validation[counti][0]*lambdalambda))/lambdalambda
+#        x_val_validation[counti][2*i-1]=np.abs(np.sum(np.exp((abb+Walsh1D[i]*(np.pi/3))*1j))/walshsize)**4  ###+biased intensity reading
+#        x_val_validation[counti][2*i]=np.abs(np.sum(np.exp((abb-Walsh1D[i]*(np.pi/3))*1j))/walshsize)**4  ###-biased intensity reading
+#        #add noise
+#        lambdalambda=np.random.uniform(10,1e4)
+#        x_val_validation[counti][2*i-1:2*i+1]=np.random.poisson(np.round(x_val_validation[counti][2*i-1:2*i+1]*lambdalambda))/lambdalambda
+      
+#        z_val_validation[counti][i-1]=0.5*np.arctan2((math.sqrt(x_val_validation[counti][2*i-1])-math.sqrt(x_val_validation[counti][2*i]))*(-math.sqrt(3)),(-math.sqrt(x_val_validation[counti][2*i-1])-math.sqrt(x_val_validation[counti][2*i])+2*math.sqrt(x_val_validation[counti][0])))  
+       
+#        aberration_prediction=np.zeros([1,walshsize-1])
+#       #  print(aberration_prediction)
+#        aberration_prediction[0][i-1]=z_val_validation[counti][i-1]
+#       #  print(aberration_prediction)
+#       #  print(z_val_validation[counti][i-1])
+#        aberrationnew=aberration[counti]-aberration_prediction[0]
+#       #  print(aberration[counti])
+#       #  print(aberration_prediction[0])
+#       #  print(aberrationnew)
+#        aberration[counti]=aberrationnew
+#       #  print(aberration[counti])
+#       #  print(aberration[counti])
+#       #  print(aberration_prediction[0])
+#       #  print(aberrationnew)
+#        abb=np.zeros(walshsize)
+#        for i in range(1,walshsize):
+        
+#          abb=abb+Walsh1D[i]*aberrationnew[i-1]
+        
+       
+       
+#      pupilfield=np.exp(abb*1j)
+     
+#      SR_sequential[counti]=np.abs(np.sum(pupilfield)/walshsize)**2## calculate original Strehl ratio
+
+#    print('traditional validation sequential',n+1,round(np.average(SR_sequential),4))
+#    n=n+1;
+# ####################################################################NN correction
+rounds=10
+ypoints = np.zeros(rounds) #plot
+
+####################################################
+aberration=y_val_validation
+# print('original 17th mode amplitude',aberration.sum(axis=0)[15]/validation_size)
+for counti in range (validation_size):
+    abb=np.zeros(walshsize)
+    for i in range(1,16):
+      abb=abb+Walsh1D[i]*aberration[counti][i-1]
+      
+    k=16
+    for i in index:
+      abb=abb+Walsh1D[i]*aberration[counti][k-1]
+      k=k+1
+      
+    pupilfield=np.exp(abb*1j)
+    SR_NN[counti]=np.abs(np.sum(pupilfield)/walshsize)**2## calculate original Strehl ratio
+print('NN original',round(np.average(SR_NN),4))
+
+###loop
+for I in range (rounds): 
+   
+###############################
+   y_val2_validation = np.zeros([validation_size,walshsizeactual-1])# Voronoi cell labels
+   x_val_validation = np.zeros([validation_size,(walshsizeactual)*2-1]) # intensity reading
+   z_val_validation = np.zeros([validation_size,walshsizeactual-1]) # rough estiamtes of coeffs
+   z_val2_validation = np.zeros([validation_size,walshsizeactual-1]) # wrapped rough estiamtes of coeffs
+#######################################
+   for counti in range (validation_size):
+     abb=np.zeros(walshsize)
+     for i in range(1,16):
+       abb=abb+Walsh1D[i]*y_val_validation[counti][i-1]
+    #  k=16
+    #  for i in index:
+    #   abb=abb+Walsh1D[i]*aberration[counti][k-1]
+    #   k=k+1
+     pupilfield=np.exp(abb*1j)
+ 
+     new_abb=abb-np.angle(np.sum(pupilfield)/walshsize)#remove phasor
+     new_abb=np.angle(np.exp(new_abb*1j))# phase wrap
+     for i in range(1,16):
+       y_val2_validation[counti][i-1]=np.sum(new_abb*Walsh1D[i])/np.sum(Walsh1D[i]*Walsh1D[i])##walsh mode decompose
+#######################only wrap the first 16 Walsh modes
+     
+     for i in range(16,walshsizeactual):
+      y_val2_validation[counti][i-1]=y_val_validation[counti][i-1]
+      
+##############################################################wrap whole Walsh mode set
+    #  k=16
+    #  for i in index:
+    #   y_val2_validation[counti][k-1]=np.sum(new_abb*Walsh1D[i])/np.sum(Walsh1D[i]*Walsh1D[i])##walsh mode decompose
+    #   k=k+1
+#########################################################
+     x_val_validation[counti][0]=np.abs(np.sum(np.exp(new_abb*1j))/walshsize)**4## non-biased intensity
+     for i in range(1,16):
+       x_val_validation[counti][2*i-1]=np.abs(np.sum(np.exp((new_abb+Walsh1D[i]*(np.pi/3))*1j))/walshsize)**4  ###+biased intensity reading
+       x_val_validation[counti][2*i]=np.abs(np.sum(np.exp((new_abb-Walsh1D[i]*(np.pi/3))*1j))/walshsize)**4  ###-biased intensity reading
+     k=16
+     for i in index:
+       x_val_validation[counti][2*k-1]=np.abs(np.sum(np.exp((new_abb+Walsh1D[i]*(np.pi/3))*1j))/walshsize)**4  ###+biased intensity reading
+       x_val_validation[counti][2*k]=np.abs(np.sum(np.exp((new_abb-Walsh1D[i]*(np.pi/3))*1j))/walshsize)**4  ###-biased intensity reading
+       k=k+1
+    #  #add noise
+    #  lambdalambda=np.random.uniform(10,1e4)
+    #  x_val_validation[counti][:]=np.random.poisson(np.round(x_val_validation[counti][:]*lambdalambda))/lambdalambda
+     for i in range(1,walshsizeactual):
+       z_val_validation[counti][i-1]=0.5*np.arctan2((-math.sqrt(3))*(math.sqrt(x_val_validation[counti][2*i-1])-math.sqrt(x_val_validation[counti][2*i])),(-math.sqrt(x_val_validation[counti][2*i-1])-math.sqrt(x_val_validation[counti][2*i])+2*math.sqrt(x_val_validation[counti][0])))
+     
+     ###wrap z into std_cal
+     abb=np.zeros(walshsize)
+     for i in range(1,16):
+       abb=abb+Walsh1D[i]*z_val_validation[counti][i-1]
+    #  k=16
+    #  for i in index:
+    #    abb=abb+Walsh1D[i]*z_val_validation[counti][k-1]
+    #    k=k+1
+     pupilfield=np.exp(abb*1j)
+ 
+     new_abb=abb-np.angle(np.sum(pupilfield)/walshsize)#remove phasor
+     new_abb=np.angle(np.exp(new_abb*1j))# phase wrap
+     for i in range(1,16):
+       z_val2_validation[counti][i-1]=np.sum(new_abb*Walsh1D[i])/np.sum(Walsh1D[i]*Walsh1D[i])##walsh mode decompose 
+############################################################################when wrap whole Walsh mode set
+    #  k=16
+    #  for i in index:
+    #    z_val2_validation[counti][k-1]=np.sum(new_abb*Walsh1D[i])/np.sum(Walsh1D[i]*Walsh1D[i])##walsh mode decompose 
+    #    k=k+1
+#######################################################################only wrap the first 16 Walsh modes
+     for i in range(16,walshsizeactual):
+       z_val2_validation[counti][i-1]=z_val_validation[counti][i-1]
+   #####
+   z_val2_validation=z_val2_validation[:,0:15]######number 1
+   x_val_validation=x_val_validation[:,0:31]######number 2
+   
+   #validation data set
+   nobiasint_val_validation = np.expand_dims(np.repeat(np.expand_dims(x_val_validation[:,0],axis=1),15,axis = 1),axis=2)##number 3
+
+   nobiasint2_val_validation = np.repeat(np.expand_dims(np.expand_dims(x_val_validation[:,0],axis=1),axis=1),3,axis = 2)
+
+   biasint_val_validation = x_val_validation[:,1::].reshape(-1,15,2)####number 4
+
+   reconstructedfluoint_val_validation = np.expand_dims(np.append(np.append(nobiasint_val_validation,biasint_val_validation,axis=2),nobiasint2_val_validation,axis = 1),axis=-1)
+   
+   ## nth round
+   pred_test = model.predict([reconstructedfluoint_val_validation,z_val2_validation])
+   pred_test_result=pred_test
+  #  print(type(pred_test_result))
+  #  print(np.shape(pred_test_result)[1])
+  #  print(np.shape(y_val2_validation)[1])
+ 
+   pred_test=np.concatenate((pred_test_result,np.zeros((validation_size,(np.shape(y_val2_validation)[1]-np.shape(pred_test_result)[1])))),axis=1)
+  #  print(np.zeros((validation_size,(np.shape(y_val2_validation)[1]-np.shape(pred_test_result)[1]))).shape)
+  #  print(pred_test_result.shape)
+  #  print(y_val2_validation.shape)
+   
+   
+   ####
+  
+   aberration=y_val2_validation-pred_test;
+  #  print(I+1,'th round 17th mode amplitude',aberration.sum(axis=0)[15]/validation_size)
+   for counti in range (validation_size):
+     abb=np.zeros(walshsize)
+     for i in range(1,16):
+       abb=abb+Walsh1D[i]*aberration[counti][i-1]
+     k=16
+     for i in index:
+       abb=abb+Walsh1D[i]*aberration[counti][k-1]
+       k=k+1
+  
+     pupilfield=np.exp(abb*1j)
+     SR_NN[counti]=np.abs(np.sum(pupilfield)/walshsize)**2## calculate original Strehl ratio
+     ############################################################################not use 'pupil plane modification'
+  #  y_val_validation=aberration
+     ############################################################################use 'pupil plane modification'
+   if (I%2)==0 or I>=4:##even, do not change pixel position
+      y_val_validation=aberration
+      print('unchange')
+   else:###odd, change pixel position
+      print('change')
+      for counti in range (validation_size):
+        abb=np.zeros(walshsize)
+        for i in range(1,16):
+          abb=abb+Walsh1D[i]*aberration[counti][i-1]
+        k=16
+        for i in index:
+          abb=abb+Walsh1D[i]*aberration[counti][k-1]
+          k=k+1
+        
+        # print(abb.shape)
+        # print(abb)
+        for n in range(8):
+          tmp = np.copy(abb[4*n+2])
+          abb[4*n+2]=abb[4*n+1]
+          abb[4*n+1]=tmp
+        # print(abb)
+        for i in range(1,16):
+          y_val_validation[counti][i-1]=np.sum(abb*Walsh1D[i])/np.sum(Walsh1D[i]*Walsh1D[i])##walsh mode decompose
+
+        k=16
+        for i in index:
+          y_val_validation[counti][k-1]=np.sum(abb*Walsh1D[i])/np.sum(Walsh1D[i]*Walsh1D[i])##walsh mode decompose
+          k=k+1
+        
+        
+
+
+   
+   
+   print(I+1,'th round',round(np.average(SR_NN),4))
+   ypoints[I]=round(np.average(SR_NN),4)
+xpoints = np.arange(10)
+print(xpoints)
+plt.plot(xpoints,ypoints)
+plt.show()
