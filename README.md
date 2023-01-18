@@ -17,3 +17,4 @@ Here are some ideas to get you started:
 
 
 This repository is for paper writing on Jan 2023,Walsh based NN.
+Walsh_fluo_NN_prediction_2P_atanatan2_test.ipynb shows the structure of NN using now (N=16,2P), and can be used to compare benefits of atan and atan2.
